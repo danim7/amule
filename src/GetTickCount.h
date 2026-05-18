@@ -42,7 +42,7 @@
 // However, on GUI, GetTickCount does only work in
 // 20 msecs increment, and some classes need better.
 
-uint32 GetTickCountFullRes();
+uint64 GetTickCountFullRes64();
 
 uint64 GetTickCount64();
 

@@ -839,7 +839,7 @@ private:
 
 	/* Calculation of last average speed */
 	uint32		m_lastaverage;
-	uint32		m_last_block_start;
+	uint64		m_last_block_start;
 
 	/* Save the encryption status for display when disconnected */
 	bool		m_hasbeenobfuscatinglately;

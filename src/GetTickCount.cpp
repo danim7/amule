@@ -39,7 +39,7 @@ void StopTickTimer(){};
  * This function replaces calls to the low res system function GetTickCOunt
  * (which can also be messed up when an app changes the system timer resolution)
  */
-uint32 GetTickCountFullRes() {
+uint64 GetTickCountFullRes64() {
 	return GetTickCount_64();
 }
 
@@ -71,13 +71,16 @@ uint64 GetTickCount_64()
 
 #else
 
-#include <sys/time.h>		// Needed for gettimeofday
+#include <time.h>		// Needed for clock_gettime
 
-uint32 GetTickCountFullRes(void) {
-	struct timeval aika;
-	gettimeofday(&aika,NULL);
-	unsigned long msecs = aika.tv_sec * 1000;
-	msecs += (aika.tv_usec / 1000);
+uint64 GetTickCountFullRes64(void) {
+	struct timespec ts;
+	uint64 msecs;
+
+	// Fetch time (Y2038-safe)
+	clock_gettime(CLOCK_REALTIME, &ts);
+	msecs = (uint64) ts.tv_sec * 1000;
+	msecs += ts.tv_nsec / 1000000;
 	return msecs;
 }
 
@@ -144,13 +147,11 @@ uint32 GetTickCountFullRes(void) {
 
 	void StopTickTimer() {}
 
-	uint32 GetTickCount() { return GetTickCountFullRes(); }
+	uint32 GetTickCount() { return GetTickCountFullRes64(); }
 
 	// avoids 32bit rollover error for differences above 50days
 	uint64 GetTickCount64() {
-		struct timeval aika;
-		gettimeofday(&aika,NULL);
-		return aika.tv_sec * (uint64)1000 + aika.tv_usec / 1000;
+		return GetTickCountFullRes64();
 	}
 
 #endif
