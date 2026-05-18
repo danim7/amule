@@ -33,7 +33,7 @@
 	uint32 GetTickCount();
 #else
 	// System GetTickcount is lowres, so use fullres
-	#define GetTickCount GetTickCountFullRes
+	#define GetTickCount GetTickCountFullRes64
 	// GetTickCount64 is a system function in Vista so rename it
 	#define GetTickCount64 GetTickCount_64
 #endif

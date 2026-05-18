@@ -559,8 +559,6 @@ public:
 
 	double		GetScoreRatio() const;
 
-	uint32		GetCreationTime() const { return m_nCreationTime; }
-
 	bool		SupportsLargeFiles() const { return m_fSupportsLargeFiles; }
 
 	EIdentState	GetCurrentIdentState() const { return credits ? credits->GetCurrentIdentState(GetIP()) : IS_NOTAVAILABLE; }
@@ -575,7 +573,7 @@ public:
 	bool		RequestsCryptLayer() const			{ return SupportsCryptLayer() && m_fRequestsCryptLayer; }
 	bool		RequiresCryptLayer() const			{ return RequestsCryptLayer() && m_fRequiresCryptLayer; }
 	bool		SupportsDirectUDPCallback() const		{ return m_fDirectUDPCallback != 0 && HasValidHash() && GetKadPort() != 0; }
-	uint32_t	GetDirectCallbackTimeout() const		{ return m_dwDirectCallbackTimeout; }
+	uint64_t	GetDirectCallbackTimeout() const		{ return m_dwDirectCallbackTimeout; }
 	bool		HasObfuscatedConnectionBeenEstablished() const	{ return m_hasbeenobfuscatinglately; }
 
 	void		SetCryptLayerSupport(bool bVal)			{ m_fSupportsCryptLayer = bVal ? 1 : 0; }
@@ -807,7 +805,7 @@ private:
 
 	uint8		m_byKadVersion;
 	uint32		m_dwLastBuddyPingPongTime;
-	uint32_t	m_dwDirectCallbackTimeout;
+	uint64_t	m_dwDirectCallbackTimeout;
 
 	//! This keeps track of aggressive requests for files.
 	uint16		m_Aggressiveness;
@@ -833,9 +831,6 @@ private:
 	uint32		m_lastClientSoft;
 	uint32		m_lastClientVersion;
 	wxString	m_lastOSInfo;
-
-	/* For buddies timeout */
-	uint32		m_nCreationTime;
 
 	/* Calculation of last average speed */
 	uint32		m_lastaverage;
