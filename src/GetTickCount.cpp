@@ -26,6 +26,7 @@
 
 #include "GetTickCount.h" // Interface
 
+//seconds from app start-up, check GetTickCount.h
 uint32 TheTime = 0;
 
 #ifdef __WINDOWS__
@@ -84,57 +85,6 @@ uint64 GetTickCountFullRes64(void) {
 	return msecs;
 }
 
-#if wxUSE_GUI && wxUSE_TIMER && !defined(AMULE_DAEMON)
-/**
- * Copyright (c) 2003-2011 Alo Sarv ( madcat_@users.sourceforge.net )
- * wxTimer based implementation. wxGetLocalTimeMillis() is called every 2
- * milliseconds and values stored in local variables. Upon requests for current
- * time, values of those variables are returned. This means wxGetLocalTimeMillis
- * is being called exactly 50 times per second at any case, no more no less.
- */
-	#include <wx/timer.h>
-
-	class MyTimer : public wxTimer
-	{
-	public:
-		MyTimer() { tic32 = tic64 = wxGetLocalTimeMillis().GetValue(); Start(20); }
-		static uint32 GetTickCountNow() { return tic32; }
-		static uint64 GetTickCountNow64() { return tic64; }
-	private:
-		void Notify() { tic32 = tic64 = wxGetLocalTimeMillis().GetValue(); }
-
-		static uint32 tic32;
-		static uint64 tic64;
-	};
-
-	static class MyTimer* mytimer;
-
-	// Initialization of the static MyTimer member variables.
-	uint32 MyTimer::tic32 = 0;
-	uint64 MyTimer::tic64 = 0;
-
-	void StartTickTimer() {
-		wxASSERT(mytimer == NULL);
-		mytimer = new MyTimer();
-	}
-
-	void StopTickTimer() {
-		wxASSERT(mytimer != NULL);
-		delete mytimer;
-		mytimer = NULL;
-	}
-
-	uint32 GetTickCount(){
-		wxASSERT(mytimer != NULL);
-		return MyTimer::GetTickCountNow();
-	}
-
-	uint64 GetTickCount64(){
-		wxASSERT(mytimer != NULL);
-		return MyTimer::GetTickCountNow64();
-	}
-
-#else
 /**
  * Copyright (c) 2002-2011 Timo Kujala ( tiku@users.sourceforge.net )
  * gettimeofday() syscall based implementation. Upon request to GetTickCount(),
@@ -147,14 +97,11 @@ uint64 GetTickCountFullRes64(void) {
 
 	void StopTickTimer() {}
 
-	uint32 GetTickCount() { return GetTickCountFullRes64(); }
-
 	// avoids 32bit rollover error for differences above 50days
 	uint64 GetTickCount64() {
 		return GetTickCountFullRes64();
 	}
 
-#endif
 
 #endif
 // File_checked_for_headers

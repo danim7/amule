@@ -30,10 +30,10 @@
 #include "Types.h"		// Needed for uint32
 
 #ifndef _WIN32
-	uint32 GetTickCount();
+//	uint32 GetTickCount(); -Deprecated, not Y2038 safe
 #else
 	// System GetTickcount is lowres, so use fullres
-	#define GetTickCount GetTickCountFullRes64
+//	#define GetTickCount GetTickCountFullRes64
 	// GetTickCount64 is a system function in Vista so rename it
 	#define GetTickCount64 GetTickCount_64
 #endif
@@ -53,6 +53,7 @@ void StartTickTimer();
 void StopTickTimer();
 
 // A cheap global time (in s) without any function calls updated in OnCoreTimer
+// It counts from app startup, so uint32 shall be enough for a 136 years long session
 extern uint32 TheTime;
 
 #endif // GETTICKCOUNT_H

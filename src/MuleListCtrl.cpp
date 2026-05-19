@@ -34,7 +34,7 @@
 #include <common/MenuIDs.h>
 
 #include "MuleListCtrl.h"		// Interface declarations
-#include "GetTickCount.h"		// Needed for GetTickCount()
+#include "GetTickCount.h"		// Needed for GetTickCount64()
 #include "OtherFunctions.h"
 
 
@@ -690,11 +690,11 @@ void CMuleListCtrl::OnChar(wxKeyEvent& evt)
 
 		evt.Skip();
 		return;
-	} else if (m_tts_time + 1500u < GetTickCount()) {
+	} else if (m_tts_time + 1500u < GetTickCount64()) {
 		m_tts_text.Clear();
 	}
 
-	m_tts_time = GetTickCount();
+	m_tts_time = GetTickCount64();
 	m_tts_text.Append(wxTolower(key));
 
 	// May happen if the subclass does not forward deletion events.
