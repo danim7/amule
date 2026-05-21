@@ -1057,8 +1057,8 @@ void CDownloadQueue::ProcessLocalRequests()
 		const int iMaxFilesPerTcpFrame = 15;
 		int iFiles = 0;
 		while (!m_localServerReqQueue.empty() && iFiles < iMaxFilesPerTcpFrame) {
-			// find the file with the longest waitingtime - safe until Y2106
-			uint32 dwBestWaitTime = 0xFFFFFFFF;
+			// find the file with the longest waitingtime
+			uint64 dwBestWaitTime = 0xFFFFFFFFFFFFFFFF;
 
 			std::list<CPartFile*>::iterator posNextRequest = m_localServerReqQueue.end();
 			std::list<CPartFile*>::iterator it = m_localServerReqQueue.begin();

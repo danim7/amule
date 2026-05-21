@@ -209,9 +209,10 @@ void CamuleRemoteGuiApp::OnPollTimer(wxTimerEvent&)
 
 	// Check for new links once per second.
 	static uint64 lastED2KLinkCheck = 0;
-	if (GetTickCount64() - lastED2KLinkCheck >= 1000) {
+	uint64 now = GetTickCount64();
+	if (now - lastED2KLinkCheck >= 1000) {
 		AddLinksFromFile();
-		lastED2KLinkCheck = GetTickCount64();
+		lastED2KLinkCheck = now;
 	}
 }
 

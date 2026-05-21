@@ -85,8 +85,9 @@ CEMSocket::CEMSocket(const CProxyData *ProxyData)
     m_numberOfSentBytesPartFile = 0;
     m_numberOfSentBytesControlPacket = 0;
 
-    lastCalledSend = ::GetTickCount64();
-    lastSent = ::GetTickCount64()-1000;
+    const uint64 now = ::GetTickCount64();
+    lastCalledSend = now;
+    lastSent = now-1000;
 
     m_bAccelerateUpload = false;
 
@@ -493,9 +494,10 @@ SocketSentBytes CEMSocket::Send(uint32 maxNumberOfBytesToSend, uint32 minFragSiz
 
 		maxNumberOfBytesToSend = GetNextFragSize(maxNumberOfBytesToSend, minFragSize);
 
-		bool bWasLongTimeSinceSend = (::GetTickCount64() - lastSent) > 1000;
+		uint64 now = ::GetTickCount64();
+		bool bWasLongTimeSinceSend = (now - lastSent) > 1000;
 
-		lastCalledSend = ::GetTickCount64();
+		lastCalledSend = now;
 
 
 		while(sentStandardPacketBytesThisCall + sentControlPacketBytesThisCall < maxNumberOfBytesToSend && anErrorHasOccured == false && // don't send more than allowed. Also, there should have been no error in earlier loop
@@ -571,8 +573,6 @@ SocketSentBytes CEMSocket::Send(uint32 maxNumberOfBytesToSend, uint32 minFragSiz
 						tosend = nextFragMaxBytesToSent-(sentStandardPacketBytesThisCall + sentControlPacketBytesThisCall);
 				}
 				wxASSERT(tosend != 0 && tosend <= sendblen-sent);
-
-				//DWORD tempStartSendTick = ::GetTickCount();
 
 				lastSent = ::GetTickCount64();
 
@@ -688,10 +688,11 @@ uint32 CEMSocket::GetNeededBytes()
 		if (((sendbuffer && !m_currentPacket_is_controlpacket)) && !m_control_queue.empty())
 			m_bAccelerateUpload = true;	// We might be trying to send a block request, accelerate packet
 
-		sendgap = ::GetTickCount64() - lastCalledSend;
+		uint64 now = ::GetTickCount64();
+		sendgap = now - lastCalledSend;
 
 		timetotal = m_bAccelerateUpload?45000:90000;
-		timeleft = ::GetTickCount64() - lastFinishedStandard;
+		timeleft = now - lastFinishedStandard;
 		if (sendbuffer && !m_currentPacket_is_controlpacket) {
 			sizeleft = sendblen-sent;
 			sizetotal = sendblen;

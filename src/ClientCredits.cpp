@@ -57,8 +57,7 @@ CClientCredits::CClientCredits(const CMD4Hash& key)
 	m_pCredits->key = key;
 
 	InitalizeIdent();
-	m_dwUnSecureWaitTime = ::GetTickCount64();
-	m_dwSecureWaitTime = ::GetTickCount64();
+	m_dwUnSecureWaitTime = m_dwSecureWaitTime = ::GetTickCount64();
 	m_dwWaitTimeIP = 0;
 }
 
@@ -262,8 +261,7 @@ uint64 CClientCredits::GetSecureWaitStartTime(uint32 dwForIP)
 
 void CClientCredits::SetSecWaitStartTime(uint32 dwForIP)
 {
-	m_dwUnSecureWaitTime = ::GetTickCount64()-1;
-	m_dwSecureWaitTime = ::GetTickCount64()-1;
+	m_dwUnSecureWaitTime = m_dwSecureWaitTime = ::GetTickCount64()-1;
 	m_dwWaitTimeIP = dwForIP;
 }
 

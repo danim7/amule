@@ -141,8 +141,9 @@ bool CClientTCPSocket::CheckTimeOut()
 		}
 	}
 
-	if (::GetTickCount64() - timeout_timer > uTimeout){
-		timeout_timer = ::GetTickCount64();
+	uint64 now = ::GetTickCount64();
+	if (now - timeout_timer > uTimeout){
+		timeout_timer = now;
 		Disconnect("Timeout");
 		return true;
 	}

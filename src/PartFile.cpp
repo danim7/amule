@@ -1130,9 +1130,10 @@ void CPartFile::SaveSourceSeeds()
 
 		/* v2: Added to keep track of too old seeds */
 		/* according to https://docs.wxwidgets.org/3.2/classwx_date_time.html#a99263946a9a2ece83421411081c02378
-		 * GetTicks() won't work after Jan 19, 2038. Use GetValue() instead and convert from ms to seconds.
-		 * Since GetValue() returns a wxLongLong which is obsolete, just use GetTickCount64()/1000*/
-		file.WriteUInt32(GetTickCount64()/1000);
+		 * GetTicks() won't work after Jan 19, 2038, and suggest to use GetValue() instead and convert from ms
+		 * to seconds.
+		 * Since GetValue() returns a wxLongLong which is tagged obsolete, just use GetTickCount64()/1000*/
+		file.WriteUInt32((uint32)(GetTickCount64()/1000));
 
 		AddLogLineN(CFormat( wxPLURAL("Saved %i source seed for partfile: %s (%s)", "Saved %i source seeds for partfile: %s (%s)", n_sources) )
 			% n_sources

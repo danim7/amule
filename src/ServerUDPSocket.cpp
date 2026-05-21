@@ -414,7 +414,8 @@ void CServerUDPSocket::SendQueue()
 			// This not an ip but a hostname. Resolve it.
 			CServer* update = theApp->serverlist->GetServerByAddress(item.addr, item.port);
 			if (update) {
-				if (update->GetLastDNSSolve() + DNS_SOLVE_TIME < ::GetTickCount64()) {
+				const uint64 now = ::GetTickCount64();
+				if (update->GetLastDNSSolve() + DNS_SOLVE_TIME < now) {
 					// Its time for a new check.
 					CAsyncDNS* dns = new CAsyncDNS(item.addr, DNS_UDP, theApp, this);
 					if ((dns->Create() != wxTHREAD_NO_ERROR) || (dns->Run() != wxTHREAD_NO_ERROR)) {
@@ -423,7 +424,7 @@ void CServerUDPSocket::SendQueue()
 						continue;
 					}
 					update->SetDNSError(false);
-					update->SetLastDNSSolve(::GetTickCount64());
+					update->SetLastDNSSolve(now);
 					// Wait for the DNS query to be resolved
 					return;
 				} else {
