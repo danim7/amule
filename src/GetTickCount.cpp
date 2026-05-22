@@ -36,16 +36,7 @@ void StartTickTimer(){};
 void StopTickTimer(){};
 
 /**
- * Returns the tickcount in full resolution using the highres timer.
- * This function replaces calls to the low res system function GetTickCOunt
- * (which can also be messed up when an app changes the system timer resolution)
- */
-uint64 GetTickCountFullRes64() {
-	return GetTickCount_64();
-}
-
-/**
- * Returns the tickcount in 64bits.
+ * Returns the tickcount in milliseconds in 64bits.
  */
 uint64 GetTickCount_64()
 {
@@ -74,7 +65,10 @@ uint64 GetTickCount_64()
 
 #include <time.h>		// Needed for clock_gettime
 
-uint64 GetTickCountFullRes64(void) {
+// in milliseconds, not seconds
+// avoids 32bit rollover error for differences above 50days
+// since 2**32 milliseconds = 50 days aprox
+uint64 GetTickCount64(void) {
 	struct timespec ts;
 	uint64 msecs;
 
@@ -96,12 +90,6 @@ uint64 GetTickCountFullRes64(void) {
 	void StartTickTimer() {}
 
 	void StopTickTimer() {}
-
-	// avoids 32bit rollover error for differences above 50days
-	uint64 GetTickCount64() {
-		return GetTickCountFullRes64();
-	}
-
 
 #endif
 // File_checked_for_headers

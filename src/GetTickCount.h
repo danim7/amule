@@ -27,23 +27,15 @@
 #ifndef GETTICKCOUNT_H
 #define GETTICKCOUNT_H
 
-#include "Types.h"		// Needed for uint32
+#include "Types.h"		// Needed for uint32, uint64
 
-#ifndef _WIN32
-//	uint32 GetTickCount(); -Deprecated, not Y2038 safe
-#else
-	// System GetTickcount is lowres, so use fullres
-//	#define GetTickCount GetTickCountFullRes64
+#ifdef _WIN32
 	// GetTickCount64 is a system function in Vista so rename it
 	#define GetTickCount64 GetTickCount_64
 #endif
 
-// Ideally, same than GetTickCount.
-// However, on GUI, GetTickCount does only work in
-// 20 msecs increment, and some classes need better.
 
-uint64 GetTickCountFullRes64();
-
+//return units are milliseconds, not seconds!!!
 uint64 GetTickCount64();
 
 // Functions used to init the timer on GUI

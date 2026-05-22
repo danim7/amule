@@ -23,7 +23,7 @@
 //
 
 #include "Timer.h"		// Interface declaration
-#include "GetTickCount.h"	// Needed for GetTickCountFullRes
+#include "GetTickCount.h"	// Needed for GetTickCount
 #include "MuleThread.h"		// Needed for CMuleThread
 
 
@@ -40,10 +40,10 @@ public:
 	void* Entry() {
 		CTimerEvent evt(m_id);
 
-		uint64 lastEvent = GetTickCountFullRes64();
+		uint64 lastEvent = GetTickCount64();
 		do {
 			// current time
-			uint64 now = GetTickCountFullRes64();
+			uint64 now = GetTickCount64();
 			// This is typically zero, because lastEvent was already incremented by one period.
 			sint64 delta = now - lastEvent;
 			if (delta > 100 * m_period) {

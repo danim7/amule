@@ -923,7 +923,7 @@ void CUpDownClient::ProcessBlockPacket(const uint8_t* packet, uint32 size, bool 
 
 				if (cur_block->block->StartOffset == nStartPos) {
 					// This block just started transferring. Set the start time.
-					m_last_block_start = ::GetTickCountFullRes64();
+					m_last_block_start = ::GetTickCount64();
 				}
 
 				if (cur_block->fZStreamError){
@@ -1029,7 +1029,7 @@ void CUpDownClient::ProcessBlockPacket(const uint8_t* packet, uint32 size, bool 
 
 						// Save last average speed based on data and time.
 						// This should do bytes/sec.
-						uint64 average_time = (::GetTickCountFullRes64() - m_last_block_start);
+						uint64 average_time = (::GetTickCount64() - m_last_block_start);
 
 						// Avoid divide by 0.
 						if (average_time == 0) {
