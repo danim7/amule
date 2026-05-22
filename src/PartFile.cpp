@@ -760,7 +760,7 @@ uint8 CPartFile::LoadPartFile(const CPath& in_directory, const CPath& filename, 
 		m_hashsetneeded = true;
 		ClearMetDirty();
 		ClearStatsDirty();
-		m_lastMetSaveTick = ::GetTickCount();
+		m_lastMetSaveTick = ::GetTickCount64();
 		return true;
 	} else {
 		m_hashsetneeded = false;
@@ -809,7 +809,7 @@ uint8 CPartFile::LoadPartFile(const CPath& in_directory, const CPath& filename, 
 	// from load time so the stats-heartbeat is measured from now.
 	ClearMetDirty();
 	ClearStatsDirty();
-	m_lastMetSaveTick = ::GetTickCount();
+	m_lastMetSaveTick = ::GetTickCount64();
 
 	return true;
 }
@@ -1046,7 +1046,7 @@ bool CPartFile::SavePartFile(bool Initial)
 
 	ClearMetDirty();
 	ClearStatsDirty();
-	m_lastMetSaveTick = ::GetTickCount();
+	m_lastMetSaveTick = ::GetTickCount64();
 	return true;
 }
 
@@ -3366,10 +3366,10 @@ void CPartFile::FlushBuffer(bool fromAICHRecoveryDataAvailable)
 	//      save automatically resets it.
 	// If neither bit is dirty, no save fires.  An idle seeder with no
 	// activity at all writes nothing until shutdown.
-	const uint32 STATS_HEARTBEAT_MS = 10 * 60 * 1000;
+	const uint64 STATS_HEARTBEAT_MS = 10 * 60 * 1000;
 	if (IsMetDirty() ||
 		(IsStatsDirty() &&
-		 (::GetTickCount() - m_lastMetSaveTick > STATS_HEARTBEAT_MS))) {
+		 (::GetTickCount64() - m_lastMetSaveTick > STATS_HEARTBEAT_MS))) {
 		SavePartFile();
 	}
 

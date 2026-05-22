@@ -415,7 +415,7 @@ private:
 	// Tick (GetTickCount) of the last successful SavePartFile.
 	// Used together with m_statsDirty to throttle soft-stat persistence
 	// to the STATS_HEARTBEAT_MS cadence (see FlushBuffer).
-	uint32 m_lastMetSaveTick = 0;
+	uint64 m_lastMetSaveTick = 0;
 
 	// Soft-dirty bit for upload-stat counters that increment every time
 	// a peer requests / accepts / transfers a chunk
