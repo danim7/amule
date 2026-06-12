@@ -169,6 +169,38 @@ void CServerListCtrl::RemoveAllServers(int state)
 	ShowServerCount();
 }
 
+constexpr char const* BLACK_FLAG = "\xF0\x9F\x8F\xB4";
+constexpr char const* GLOBE = "\xF0\x9F\x8C\x8D";
+constexpr char const* FALLBACK_FLAG = GLOBE;
+std::string getCountryFlagEmoji(std::string countryCode) {
+    if (countryCode.length() != 2) return FALLBACK_FLAG;
+
+    char char1 = std::toupper(countryCode[0]);
+    char char2 = std::toupper(countryCode[1]);
+
+    if (char1 < 'A' || char1 > 'Z' || char2 < 'A' || char2 > 'Z') return FALLBACK_FLAG;
+
+    // Calculate Unicode shift (constant Offset: 0x1F1A5)
+    // Region code 'A' is 0x1F1E6. 0x1F1E6 - 'A' (0x41) = 0x1F1A5
+    unsigned int cp1 = char1 + 0x1F1A5;
+    unsigned int cp2 = char2 + 0x1F1A5;
+
+    std::string flag = "";
+
+    // Encode first regional character in 4 bytes UTF-8
+    flag += static_cast<char>(0xF0 | ((cp1 >> 18) & 0x07));
+    flag += static_cast<char>(0x80 | ((cp1 >> 12) & 0x3F));
+    flag += static_cast<char>(0x80 | ((cp1 >> 6) & 0x3F));
+    flag += static_cast<char>(0x80 | (cp1 & 0x3F));
+
+    // Encode second regional character in 4 bytes UTF-8
+    flag += static_cast<char>(0xF0 | ((cp2 >> 18) & 0x07));
+    flag += static_cast<char>(0x80 | ((cp2 >> 12) & 0x3F));
+    flag += static_cast<char>(0x80 | ((cp2 >> 6) & 0x3F));
+    flag += static_cast<char>(0x80 | (cp2 & 0x3F));
+
+    return flag;
+}
 
 void CServerListCtrl::RefreshServer( CServer* server )
 {
@@ -195,7 +227,7 @@ void CServerListCtrl::RefreshServer( CServer* server )
 	// Get the country name
 	if (theApp->amuledlg->m_IP2Country->IsEnabled() && thePrefs::IsGeoIPEnabled()) {
 		const CountryData& countrydata = theApp->amuledlg->m_IP2Country->GetCountryData(server->GetFullIP());
-		serverName << countrydata.Name;
+		serverName << getCountryFlagEmoji(countrydata.Name.ToStdString()) << countrydata.Name;
 		serverName << " - ";
 	}
 #endif // ENABLE_IP2COUNTRY
