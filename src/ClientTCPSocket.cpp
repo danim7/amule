@@ -48,6 +48,7 @@
 #include "amule.h"                      // Needed for theApp
 #include "SharedFileList.h"             // Needed for CSharedFileList
 #include "ClientList.h"                 // Needed for CClientList
+#include "KnownFileList.h"              // Needed for CKnownFileList
 #include "PeerAddressing.h"             // Needed for address admission policies
 #include "UploadQueue.h"                // Needed for CUploadQueue
 #include "ClientUDPSocket.h"            // Needed for CClientUDPSocket
@@ -2017,7 +2018,26 @@ bool CClientTCPSocket::ProcessExtPacket(const uint8_t *buffer, uint32 size, uint
 		AddDebugLogLineN(logRemoteClient, "Remote Client: OP_CALLBACK from " + m_client->GetFullIP());
 		theStats::AddDownOverheadFileRequest(size);
 		if (!Kademlia::CKademlia::IsRunning()) {
+			AddDebugLogLineN(
+				logRemoteClient, "CallbackDiag: Kad callback dropped: Kad not running");
 			break;
+		}
+		if (size >= 38) {
+			CMemFile peek(buffer, size);
+			const CUInt128 peekBuddyID = peek.ReadUInt128();
+			const CUInt128 peekFileID = peek.ReadUInt128();
+			const uint32 peekIP = peek.ReadUInt32();
+			const uint16 peekPort = peek.ReadUInt16();
+			uint8_t peekFileBytes[16];
+			peekFileID.ToByteArray(peekFileBytes);
+			AddDebugLogLineN(logRemoteClient,
+				CFormat("CallbackDiag: Kad OP_CALLBACK via %s (%s %s, current buddy: %s): "
+					"requester %s:%u file %s buddy ID %s") %
+					m_client->GetFullIP() % m_client->GetSoftStr() %
+					m_client->GetSoftVerStr() %
+					(theApp->clientlist->GetBuddy() == m_client ? "yes" : "no") %
+					Uint32toStringIP(wxUINT32_SWAP_ALWAYS(peekIP)) % peekPort %
+					CMD4Hash(peekFileBytes).Encode() % peekBuddyID.ToHexString());
 		}
 		CMemFile data(buffer, size);
 		CUInt128 check = data.ReadUInt128();
@@ -2030,6 +2050,9 @@ bool CClientTCPSocket::ProcessExtPacket(const uint8_t *buffer, uint32 size, uint
 		uint8_t expectedBytes[16];
 		ownBuddyID.ToByteArray(expectedBytes);
 		if (!Kademlia::MatchesBuddyIdEitherLayout(receivedBytes, expectedBytes)) {
+			AddDebugLogLineN(logRemoteClient,
+				CFormat("CallbackDiag: Kad callback dropped: buddy ID %s, expected %s") %
+					check.ToHexString() % ownBuddyID.ToHexString());
 			break;
 		}
 		++theApp->clientlist->GetBuddyStats().own.callbacksReceived;
@@ -2039,6 +2062,14 @@ bool CClientTCPSocket::ProcessExtPacket(const uint8_t *buffer, uint32 size, uint
 		const CMD4Hash fileHash(fileid2);
 		if (theApp->sharedfiles->GetFileByID(fileHash) == NULL) {
 			if (theApp->downloadqueue->GetFileByID(fileHash) == NULL) {
+				const CKnownFile *known = theApp->knownfiles->FindKnownFileByID(fileHash);
+				AddDebugLogLineN(logRemoteClient,
+					CFormat("CallbackDiag: Kad callback dropped: file %s neither shared "
+						"nor "
+						"downloading (known file: %s)") %
+						fileHash.Encode() %
+						(known ? known->GetFileName().GetPrintable()
+						       : wxString("no")));
 				break;
 			}
 		}
@@ -2052,7 +2083,7 @@ bool CClientTCPSocket::ProcessExtPacket(const uint8_t *buffer, uint32 size, uint
 			callback = new CUpDownClient(tcp, ip, 0, 0, NULL, false, false);
 			theApp->clientlist->AddClient(callback);
 		}
-		callback->TryToConnect(true);
+		callback->TryToContactForCallback("Kad", true);
 		break;
 	}
 

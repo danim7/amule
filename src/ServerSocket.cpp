@@ -822,7 +822,13 @@ bool CServerSocket::ProcessPacket(const uint8_t *packet, uint32 size, int8 opcod
 					client->SetConnectOptions(byCryptOptions, true, false);
 				}
 
-				client->TryToConnect();
+				AddDebugLogLineN(logRemoteClient,
+					CFormat("CallbackDiag: server OP_CALLBACKREQUESTED size %u: "
+						"requester %s:%u "
+						"crypt options %u user hash %s") %
+						static_cast<unsigned int>(size) % Uint32toStringIP(dwIP) %
+						nPort % byCryptOptions % achUserHash.Encode());
+				client->TryToContactForCallback("server");
 			}
 			break;
 		}

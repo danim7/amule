@@ -227,6 +227,9 @@ public:
 	/// As TryToContact, reduced to the historical answer: false means the client was deleted
 	/// (or Connect() declined to start) and must not be touched again.
 	bool TryToConnect(bool bIgnoreMaxCon = false);
+	/// Diagnostics: TryToContact for a callback request, logging the outcome and how the
+	/// connection later ended. `source` must outlive the client. `this` may be gone afterwards.
+	void TryToContactForCallback(const char *source, bool bIgnoreMaxCon = false);
 	//! Called when an in-flight QUIC dial fails; resumes the normal policy without another QUIC probe.
 	void QuicDialFailed();
 	bool Connect();
@@ -1194,6 +1197,7 @@ private:
 	/* Razor 1a - Modif by MikaelB */
 
 	bool m_bHelloAnswerPending;
+	const char *m_callbackDiagSource = nullptr;
 
 	//! Availability of parts for the file we requested from this user. After changing it, call
 	//! CPartFile::UpdatePartsFrequency so the files know the real availability.
