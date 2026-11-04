@@ -1469,6 +1469,17 @@ bool CUpDownClient::Disconnected(const wxString &strReason, bool bFromSocket)
 		return false;
 	}
 
+	if (m_callbackDiagSource != nullptr) {
+		AddDebugLogLineN(logRemoteClient,
+			CFormat("CallbackDiag: end of %s callback to %s: reason '%s', requested file %s, "
+				"D:%d U:%d, %s") %
+				m_callbackDiagSource %
+				Uint32_16toStringIP_Port(GetConnectIP(), GetUserPort()) % strReason %
+				GetUploadFileID().Encode() % m_nDownloadState % m_nUploadState %
+				GetClientFullInfo());
+		m_callbackDiagSource = nullptr;
+	}
+
 #ifdef ENABLE_IPV6
 	m_pendingIPv6Change = false;
 	m_ipv6ChangeHelloComplete = false;
@@ -1688,6 +1699,36 @@ bool CUpDownClient::TryToConnect(bool bIgnoreMaxCon)
 	// Exactly what this returned before the outcomes were named: false where
 	// the caller must stop touching the client, true otherwise.
 	return result != EContactResult::ClientDeleted && result != EContactResult::ConnectNotStarted;
+}
+
+void CUpDownClient::TryToContactForCallback(const char *source, bool bIgnoreMaxCon)
+{
+	m_callbackDiagSource = source;
+	const wxString state =
+		CFormat("%s callback to %s: socket=%s connected=%s lowid=%s known_soft='%s' D:%d U:%d") %
+		source % Uint32_16toStringIP_Port(GetConnectIP(), GetUserPort()) % (m_socket ? "yes" : "no") %
+		(IsConnected() ? "yes" : "no") % (HasLowID() ? "yes" : "no") % GetSoftStr() %
+		m_nDownloadState % m_nUploadState;
+
+	const EContactResult result = TryToContact(bIgnoreMaxCon);
+
+	// Only the copies above from here on: the client may have been deleted.
+	const char *outcome = "?";
+	switch (result) {
+	case EContactResult::Contacting:
+		outcome = "Contacting";
+		break;
+	case EContactResult::Declined:
+		outcome = "Declined";
+		break;
+	case EContactResult::ConnectNotStarted:
+		outcome = "ConnectNotStarted";
+		break;
+	case EContactResult::ClientDeleted:
+		outcome = "ClientDeleted";
+		break;
+	}
+	AddDebugLogLineN(logRemoteClient, CFormat("CallbackDiag: %s -> %s") % state % outcome);
 }
 
 CNetworkAddress CUpDownClient::GetDialAddress() const
