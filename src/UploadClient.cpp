@@ -616,12 +616,17 @@ void CUpDownClient::SendHashsetPacket(const CMD4Hash &forfileid)
 	// asks waits for the answer until the connection times out.
 	if (!file->GetHashCount() && file->GetED2KPartHashCount() != 0) {
 		if (from_dq) {
-			AddDebugLogLineN(logRemoteClient, "Requested hashset could not be found");
+			AddDebugLogLineN(logRemoteClient,
+				CFormat("Requested hashset could not be found: file %s, requested by %s") %
+					forfileid.Encode() % GetFullIP());
 			return;
 		} else {
 			file = theApp->downloadqueue->GetFileByID(forfileid);
 			if (!(file && file->GetHashCount())) {
-				AddDebugLogLineN(logRemoteClient, "Requested hashset could not be found");
+				AddDebugLogLineN(logRemoteClient,
+					CFormat("Requested hashset could not be found: file %s, requested by "
+						"%s") %
+						forfileid.Encode() % GetFullIP());
 				return;
 			}
 		}
