@@ -230,6 +230,20 @@ bool CClientTCPSocket::IsDownloadThrottled() const
 void CClientTCPSocket::ResetTimeOutTimer()
 {
 	timeout_timer = ::GetTickCount64();
+	m_idleUploadLogged.store(false, std::memory_order_relaxed);
+}
+
+// Diagnostic: an upload socket that went quiet. The upload diagnostics count bytes the kernel
+// accepted, so this shows whether they were delivered: queued bytes still there, the peer's window
+// and retransmits tell a slow or stalled path from a peer that has everything and went idle.
+void CClientTCPSocket::LogIdleUploadSocket(const char *stage, uint64 idleMs)
+{
+	if (!m_client || m_client->GetUploadState() != US_UPLOADING || HasTransport()) {
+		return;
+	}
+	AddDebugLogLineN(logFileIO,
+		CFormat("Upload socket idle: stage=%s client=%s idle_ms=%u session_bytes=%u %s") % stage %
+			m_client->GetFullIP() % idleMs % m_client->GetSessionUp() % DescribeSendState());
 }
 
 bool CClientTCPSocket::CheckTimeOut()
@@ -263,8 +277,13 @@ bool CClientTCPSocket::CheckTimeOut()
 	// The timer first: a reset on the throttler thread after reading the clock would wrap.
 	const uint64 timerStart = timeout_timer;
 	const uint64 now = std::max<uint64>(::GetTickCount64(), timerStart);
+	const uint64 idle = now - timerStart;
+	if (idle > uTimeout / 2 && idle <= uTimeout && !m_idleUploadLogged.exchange(true)) {
+		LogIdleUploadSocket("half", idle);
+	}
 	TrackUploadSendQueue(timerStart, now);
 	if (now - LastUploadDrain(timerStart) > uTimeout) {
+		LogIdleUploadSocket("timeout", idle);
 		timeout_timer = now;
 #ifdef AMULE_UTP_TRANSPORT
 		if (TryUtpTcpFallback()) {
