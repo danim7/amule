@@ -165,6 +165,9 @@ private:
 	uint64 m_drainQueued = 0;
 	uint64 m_lastDrain = 0;
 	bool m_drainTracked = false;
+	// Diagnostic: the idle upload socket was already described at half the timeout.
+	std::atomic<bool> m_idleUploadLogged{ false };
+	void LogIdleUploadSocket(const char *stage, uint64 idleMs);
 	uint32 m_remoteip;
 	CNetworkAddress m_remoteAddress; // Dial target, or the peer captured at accepted TCP ingress.
 };

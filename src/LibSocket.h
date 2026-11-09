@@ -160,6 +160,10 @@ public:
 	// such query (Linux, macOS and the BSDs with FIONWRITE have one; Windows does not).
 	bool GetQueuedSendBytes(uint64 &bytes) const;
 
+	// Diagnostic only: the kernel's view of the sending side (queued and unsent bytes, TCP_INFO),
+	// as one log line. Linux only; empty elsewhere and for an attached transport.
+	wxString DescribeSendState() const;
+
 	// Handlers
 	virtual void OnConnect(int) {}
 	virtual void OnSend(int) {}
