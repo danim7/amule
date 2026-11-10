@@ -153,9 +153,18 @@ private:
 	bool ProcessED2Kv2Packet(const uint8_t *packet, uint32 size, uint8 opcode);
 	void ResetTimeOutTimer();
 	void SetClient(CUpDownClient *client);
+	void TrackUploadSendQueue(uint64 timerStart, uint64 now);
+	//! When the kernel last took data off this upload socket's send queue, or timerStart.
+	uint64 LastUploadDrain(uint64 timerStart) const;
 
 	// atomic: the main and throttler threads both reset it
 	std::atomic<uint64> timeout_timer;
+	// Kernel send queue of an upload socket at the last timeout check, and when it last shrank.
+	// Only valid for the timeout_timer value they were taken under. Main thread only.
+	uint64 m_drainTimer = 0;
+	uint64 m_drainQueued = 0;
+	uint64 m_lastDrain = 0;
+	bool m_drainTracked = false;
 	uint32 m_remoteip;
 	CNetworkAddress m_remoteAddress; // Dial target, or the peer captured at accepted TCP ingress.
 };
