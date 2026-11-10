@@ -158,6 +158,11 @@ public:
 	//! Whether Nagle is off; false if the socket is not open.
 	bool GetTcpNoDelay() const;
 
+	// Bytes the kernel still holds for this TCP socket: written but not yet acknowledged by the
+	// peer, unsent ones included. False for an attached transport and where the platform has no
+	// such query (Linux, macOS and the BSDs with FIONWRITE have one; Windows does not).
+	bool GetQueuedSendBytes(uint64 &bytes) const;
+
 	// Handlers
 	virtual void OnConnect(int) {}
 	virtual void OnSend(int) {}
