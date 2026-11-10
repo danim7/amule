@@ -259,8 +259,11 @@ bool CClientTCPSocket::CheckTimeOut()
 		}
 	}
 
-	uint64 now = ::GetTickCount64();
-	if (now - timeout_timer > uTimeout) {
+	// The timer first: a reset on the throttler thread after reading the clock would wrap.
+	const uint64 timerStart = timeout_timer;
+	const uint64 now = std::max<uint64>(::GetTickCount64(), timerStart);
+	TrackUploadSendQueue(timerStart, now);
+	if (now - LastUploadDrain(timerStart) > uTimeout) {
 		timeout_timer = now;
 #ifdef AMULE_UTP_TRANSPORT
 		if (TryUtpTcpFallback()) {
@@ -272,6 +275,36 @@ bool CClientTCPSocket::CheckTimeOut()
 	}
 
 	return false;
+}
+
+// The timer only counts our own writes and the peer's packets. An upload socket can have most of
+// a megabyte waiting in the kernel's send buffer, which Linux sizes on its own, and a slow peer
+// may need minutes to take it: we cannot write again until a large part of it has drained, so the
+// socket timed out while the peer was still receiving. eMule resets its timer whenever Winsock
+// reports send space, with a much smaller buffer. Here a shrinking kernel queue counts as activity
+// too, so an upload socket times out after the timeout passes with no write, no packet and no
+// drain. The queue is read on each timeout check (every 5 s) while the socket uploads.
+void CClientTCPSocket::TrackUploadSendQueue(uint64 timerStart, uint64 now)
+{
+	uint64 queued = 0;
+	if (!m_client || m_client->GetUploadState() != US_UPLOADING || !GetQueuedSendBytes(queued)) {
+		m_drainTracked = false;
+		return;
+	}
+	if (!m_drainTracked || m_drainTimer != timerStart) {
+		// A write or a packet reset the timer: start over from it.
+		m_drainTracked = true;
+		m_drainTimer = timerStart;
+		m_lastDrain = timerStart;
+	} else if (queued < m_drainQueued) {
+		m_lastDrain = now;
+	}
+	m_drainQueued = queued;
+}
+
+uint64 CClientTCPSocket::LastUploadDrain(uint64 timerStart) const
+{
+	return m_drainTracked && m_drainTimer == timerStart ? std::max(m_lastDrain, timerStart) : timerStart;
 }
 
 void CClientTCPSocket::SetClient(CUpDownClient *pClient)
