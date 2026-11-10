@@ -307,6 +307,35 @@ static wxString DescribeTcpSendState(int fd)
 }
 #endif
 
+// Bytes the kernel still holds for a TCP socket: written by us but not yet acknowledged by the
+// peer, unsent ones included. False where the platform has no such query (Windows among them).
+template <typename Handle> static inline bool QueryQueuedSendBytes(Handle native, uint64 &bytes)
+{
+#if defined(__WINDOWS__)
+	(void)native;
+	(void)bytes;
+	return false;
+#else
+	int queued = -1;
+#if defined(__linux__) && defined(SIOCOUTQ)
+	const bool ok = ::ioctl(native, SIOCOUTQ, &queued) == 0;
+#elif defined(__APPLE__) && defined(SO_NWRITE)
+	socklen_t len = sizeof(queued);
+	const bool ok = ::getsockopt(native, SOL_SOCKET, SO_NWRITE, &queued, &len) == 0;
+#elif defined(FIONWRITE)
+	const bool ok = ::ioctl(native, FIONWRITE, &queued) == 0; // FreeBSD, NetBSD, DragonFly
+#else
+	const bool ok = false;
+	(void)native;
+#endif
+	if (!ok || queued < 0) {
+		return false;
+	}
+	bytes = static_cast<uint64>(queued);
+	return true;
+#endif
+}
+
 #ifdef __WINDOWS__
 // Map a Windows adapter FriendlyName (what the prefs dropdown shows, e.g. "Ethernet",
 // "Wi-Fi") to its interface index. if_nametoindex() cannot do this on Windows -- it expects
@@ -731,6 +760,12 @@ public:
 		}
 #endif
 		return wxEmptyString;
+	}
+
+	bool GetQueuedSendBytes(uint64 &bytes) const
+	{
+		return m_socket && m_socket->is_open() &&
+		       QueryQueuedSendBytes(m_socket->native_handle(), bytes);
 	}
 
 	// Turn Nagle off. Same timing contract as EnableTcpKeepalive: the
@@ -1614,6 +1649,11 @@ bool CLibSocket::GetTcpNoDelay() const
 wxString CLibSocket::DescribeSendState() const
 {
 	return m_transport ? wxString() : m_aSocket->DescribeSendState();
+}
+
+bool CLibSocket::GetQueuedSendBytes(uint64 &bytes) const
+{
+	return !m_transport && m_aSocket->GetQueuedSendBytes(bytes);
 }
 
 void CLibSocket::SetConnectTimeout(int ms)
