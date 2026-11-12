@@ -112,6 +112,10 @@ public:
 
 	CUpDownClient *GetClient() { return m_client; }
 
+	//! Diagnostic: " drain_deferrals=N drain_bytes=B drain_extra_ms=T since_last_deferral_ms=T"
+	//! for the upload session that is ending, empty if a drain never kept it. Resets the counts.
+	wxString TakeDrainDeferralStats();
+
 	void SendPacket(CPacket *packet,
 		bool delpacket = true,
 		bool controlpacket = true,
@@ -165,6 +169,17 @@ private:
 	uint64 m_drainQueued = 0;
 	uint64 m_lastDrain = 0;
 	bool m_drainTracked = false;
+	// Diagnostic: the queue when tracking started for this timer value, the last deferral line,
+	// and what the deferrals of this upload session added up to.
+	void LogDrainDeferral(uint64 timerStart, uint64 now, uint64 timeout);
+	uint64 m_drainStartQueued = 0;
+	uint64 m_deferLogTimer = 0;
+	uint64 m_deferLogTick = 0;
+	uint64 m_deferLogQueued = 0;
+	uint32 m_drainDeferrals = 0;
+	uint64 m_drainDeferredBytes = 0;
+	uint64 m_drainFirstDeferral = 0;
+	uint64 m_drainLastDeferral = 0;
 	// Diagnostic: the idle upload socket was already described at half the timeout.
 	std::atomic<bool> m_idleUploadLogged{ false };
 	void LogIdleUploadSocket(const char *stage, uint64 idleMs);

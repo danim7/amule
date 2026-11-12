@@ -757,9 +757,11 @@ bool CUploadQueue::RemoveFromUploadQueue(CUpDownClient *client, const wxString &
 	if (found) {
 		AddDebugLogLineN(logFileIO,
 			CFormat("Upload slot ended: id=%u reason=\"%s\" seconds=%u session_bytes=%u "
-				"client=\"%s\"") %
+				"client=\"%s\"%s") %
 				client->ECID() % reason % (client->GetUpStartTimeDelay() / 1000) %
-				client->GetSessionUp() % client->GetClientVerString());
+				client->GetSessionUp() % client->GetClientVerString() %
+				(client->GetSocket() ? client->GetSocket()->TakeDrainDeferralStats()
+						     : wxString()));
 		m_allUploadingKnownFile->RemoveUploadingClient(client);
 		theStats::RemoveUploadingClient();
 		if (client->GetTransferredUp()) {

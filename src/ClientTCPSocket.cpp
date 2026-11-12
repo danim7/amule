@@ -293,8 +293,57 @@ bool CClientTCPSocket::CheckTimeOut()
 		Disconnect("Timeout");
 		return true;
 	}
+	if (now - timerStart > uTimeout) {
+		LogDrainDeferral(timerStart, now, uTimeout);
+	}
 
 	return false;
+}
+
+// Diagnostic: the socket outlived its write/packet timeout only because the kernel queue kept
+// draining. One line when that first happens for a timer value, then one per half period.
+void CClientTCPSocket::LogDrainDeferral(uint64 timerStart, uint64 now, uint64 timeout)
+{
+	if (!m_client || !m_drainTracked || m_drainTimer != timerStart) {
+		return;
+	}
+	const bool first = m_deferLogTimer != timerStart;
+	if (!first && now - m_deferLogTick < timeout / 2) {
+		return;
+	}
+	const uint64 base = first ? m_drainStartQueued : m_deferLogQueued;
+	const uint64 drained = base > m_drainQueued ? base - m_drainQueued : 0;
+	const uint64 windowMs = std::max<uint64>(now - (first ? timerStart : m_deferLogTick), 1);
+	m_deferLogTimer = timerStart;
+	m_deferLogTick = now;
+	m_deferLogQueued = m_drainQueued;
+	if (m_drainDeferrals++ == 0) {
+		m_drainFirstDeferral = now;
+	}
+	m_drainLastDeferral = now;
+	m_drainDeferredBytes += drained;
+	AddDebugLogLineN(logFileIO,
+		CFormat("Upload timeout deferred: client=%s drained_bytes=%u window_ms=%u rate_bps=%u "
+			"queued_bytes=%u deferrals=%u since_first_ms=%u session_bytes=%u "
+			"last_drain_ms_ago=%u") %
+			m_client->GetFullIP() % drained % windowMs % (drained * 1000 / windowMs) %
+			m_drainQueued % m_drainDeferrals % (now - m_drainFirstDeferral) %
+			m_client->GetSessionUp() % (now - m_lastDrain));
+}
+
+wxString CClientTCPSocket::TakeDrainDeferralStats()
+{
+	if (m_drainDeferrals == 0) {
+		return wxEmptyString;
+	}
+	const uint64 now = ::GetTickCount64();
+	const wxString stats = CFormat(" drain_deferrals=%u drain_bytes=%u drain_extra_ms=%u "
+				       "since_last_deferral_ms=%u") %
+			       m_drainDeferrals % m_drainDeferredBytes % (now - m_drainFirstDeferral) %
+			       (now - m_drainLastDeferral);
+	m_drainDeferrals = 0;
+	m_drainDeferredBytes = 0;
+	return stats;
 }
 
 // The timer only counts our own writes and the peer's packets. An upload socket can have most of
@@ -316,6 +365,7 @@ void CClientTCPSocket::TrackUploadSendQueue(uint64 timerStart, uint64 now)
 		m_drainTracked = true;
 		m_drainTimer = timerStart;
 		m_lastDrain = timerStart;
+		m_drainStartQueued = queued;
 	} else if (queued < m_drainQueued) {
 		m_lastDrain = now;
 	}
