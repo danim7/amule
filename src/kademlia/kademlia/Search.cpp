@@ -42,6 +42,7 @@ there client on the eMule forum..
 #include "../../GetTickCount.h"
 
 #include <algorithm>
+#include <map>
 
 #include <protocol/Protocols.h>
 #include <protocol/kad/Client2Client/UDP.h>
@@ -93,6 +94,32 @@ there client on the eMule forum..
 
 ////////////////////////////////////////
 using namespace Kademlia;
+
+namespace
+{
+// DIAG (not for merge): source IDs we probed for a pointer, with the source IP of the file record
+// that carried `bpv`, so a pointer can be checked against it.
+std::map<CUInt128, uint32_t> s_pointerProbes;
+
+void StartPointerProbe(const CUInt128 &sourceID, uint32_t sourceIP)
+{
+	if (s_pointerProbes.count(sourceID)) {
+		return;
+	}
+	s_pointerProbes[sourceID] = sourceIP;
+	const CUInt128 key = sourceID ^ CUInt128(true);
+	CSearch *probe = CSearchManager::PrepareLookup(CSearch::FILE, false, key);
+	if (!probe) {
+		AddLogLineN(CFormat("Pointer probe: could not start for source %s (key %s busy)") %
+			    sourceID.ToHexString() % key.ToHexString());
+		return;
+	}
+	probe->m_pointerProbe = true;
+	const bool started = CSearchManager::StartSearch(probe);
+	AddLogLineN(CFormat("Pointer probe: %s for source %s at key %s") %
+		    (started ? "started" : "failed to start") % sourceID.ToHexString() % key.ToHexString());
+}
+} // namespace
 ////////////////////////////////////////
 
 // CKadAICHHashList is written against a plain 20-byte array so that the codec pinning
@@ -876,10 +903,11 @@ void CSearch::StorePacket()
 			uint8_t fileid[16];
 			m_target.ToByteArray(fileid);
 			CKnownFile *file = theApp->downloadqueue->GetFileByID(CMD4Hash(fileid));
-			if (file) {
+			if (file || m_pointerProbe) {
 				// Start position range (0x0 to 0x7FFF)
 				searchTerms.WriteUInt16(0);
-				searchTerms.WriteUInt64(file->GetFileSize());
+				// DIAG: a pointer names no file, so the probe asks with size 0 (any size).
+				searchTerms.WriteUInt64(file ? file->GetFileSize() : 0);
 				DebugSend(Kad2SearchSourceReq, from->GetIPAddress(), from->GetUDPPort());
 				if (from->GetVersion() >= 6) {
 					CUInt128 clientID = from->GetClientID();
@@ -1445,9 +1473,15 @@ void CSearch::ProcessResultFile(const CUInt128 &answer, TagPtrList *info, uint32
 	uint8_t byCryptOptions = 0; // 0 = not supported.
 	CUInt128 buddy;
 	CNetworkAddress publishedIPv6;
+	// DIAG (#2513 pointer probe)
+	int pointerVersion = -1;
+	bool buddyHashSeen = false;
 
 	for (TagPtrList::const_iterator it = info->begin(); it != info->end(); ++it) {
 		CTag *tag = *it;
+		if (!tag->GetName().Cmp(TAG_BUDDYPOINTER)) {
+			pointerVersion = tag->IsInt() ? static_cast<int>(tag->GetInt()) : 256;
+		}
 		if (!tag->GetName().Cmp(TAG_SOURCETYPE)) {
 			type = tag->GetInt();
 		} else if (!tag->GetName().Cmp(TAG_SOURCEIP)) {
@@ -1477,6 +1511,7 @@ void CSearch::ProcessResultFile(const CUInt128 &answer, TagPtrList *info, uint32
 				printf("Invalid buddy-hash: '%s'\n", (const char *)tag->GetStr().fn_str());
 #endif
 			}
+			buddyHashSeen = true;
 			// eMule, emule-qt and eMuleAI publish TAG_BUDDYHASH in their own layout; convert to
 			// aMule's to get the real buddy ID (#1835).
 			uint8_t canonical[16];
@@ -1512,6 +1547,39 @@ void CSearch::ProcessResultFile(const CUInt128 &answer, TagPtrList *info, uint32
 				AddDebugLogLineN(logKadSearch,
 					CFormat("Invalid IPv6 source tag '%s' in search result") %
 						tag->GetName());
+			}
+		}
+	}
+
+	// DIAG (#2513): log LowID records and pointer records, then probe for the pointer.
+	{
+		const wxString bpv =
+			pointerVersion < 0 ? wxString("none") : wxString::Format("%d", pointerVersion);
+		if (m_pointerProbe) {
+			const CUInt128 probedSource = m_target ^ CUInt128(true);
+			const auto probe = s_pointerProbes.find(probedSource);
+			const bool sameSource = answer == probedSource;
+			const bool sameIP = probe != s_pointerProbes.end() && probe->second == ip;
+			const bool accepted = type == 3 && sameSource && buddyHashSeen &&
+					      buddy != CUInt128(false) && buddyip && buddyport && sameIP;
+			AddLogLineN(CFormat("Pointer probe: pointer result from storer %s: source=%s "
+					    "type=%u ip=%s tcp=%u udp=%u buddy=%s buddy_hash=%s bpv=%s "
+					    "tags=%u same_source=%s same_ip=%s accepted=%s") %
+				    KadIPPortToString(fromIP, fromPort) % answer.ToHexString() % type %
+				    KadIPToString(ip) % tcp % udp % KadIPPortToString(buddyip, buddyport) %
+				    (buddyHashSeen ? buddy.ToHexString() : wxString("none")) % bpv %
+				    static_cast<unsigned>(info->size()) % (sameSource ? "yes" : "no") %
+				    (sameIP ? "yes" : "no") % (accepted ? "yes" : "no"));
+			return;
+		}
+		if (type == 3 || type == 5) {
+			AddLogLineN(CFormat("Pointer probe: file %s result from storer %s: source=%s "
+					    "type=%u ip=%s buddy=%s bpv=%s") %
+				    m_target.ToHexString() % KadIPPortToString(fromIP, fromPort) %
+				    answer.ToHexString() % type % KadIPToString(ip) %
+				    KadIPPortToString(buddyip, buddyport) % bpv);
+			if (pointerVersion >= 0) {
+				StartPointerProbe(answer, ip);
 			}
 		}
 	}

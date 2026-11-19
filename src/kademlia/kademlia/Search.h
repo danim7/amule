@@ -174,6 +174,9 @@ public:
 	CSearch();
 	~CSearch();
 
+	// DIAG (not for merge): a size-0 FILE lookup at ~sourceID that logs pointer records (#2513).
+	bool m_pointerProbe = false;
+
 private:
 	void Go();
 	void ProcessResponse(
