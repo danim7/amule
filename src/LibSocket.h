@@ -158,6 +158,10 @@ public:
 	//! Whether Nagle is off; false if the socket is not open.
 	bool GetTcpNoDelay() const;
 
+	// Diagnostic only: the kernel's view of the sending side (queued and unsent bytes, TCP_INFO),
+	// as one log line. Linux only; empty elsewhere and for an attached transport.
+	wxString DescribeSendState() const;
+
 	// Handlers
 	virtual void OnConnect(int) {}
 	virtual void OnSend(int) {}
