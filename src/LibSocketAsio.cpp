@@ -658,6 +658,24 @@ public:
 		}
 		error_code ec;
 		m_socket->set_option(ip::tcp::no_delay(true), ec);
+#ifdef TCP_NOTSENT_LOWAT
+		// EXPERIMENT (#2607): cap the unsent part of the send queue so a slowly draining peer
+		// lets us write, and reset the timeout, often. AMULE_NOTSENT_LOWAT=bytes, 0 = off.
+		static const int s_lowat = [] {
+			const char *env = getenv("AMULE_NOTSENT_LOWAT");
+			return env ? atoi(env) : 128 * 1024;
+		}();
+		if (s_lowat > 0) {
+			const int value = s_lowat;
+			if (setsockopt(m_socket->native_handle(),
+				    IPPROTO_TCP,
+				    TCP_NOTSENT_LOWAT,
+				    &value,
+				    sizeof(value)) != 0) {
+				AddDebugLogLineN(logAsio, CFormat("TCP_NOTSENT_LOWAT failed %s") % m_IP);
+			}
+		}
+#endif
 	}
 
 	bool TcpNoDelay() const
