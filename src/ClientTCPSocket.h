@@ -174,6 +174,9 @@ private:
 
 	// atomic: the main and throttler threads both reset it
 	std::atomic<uint64> timeout_timer;
+	// Diagnostic: the idle upload socket was already described at half the timeout.
+	std::atomic<bool> m_idleUploadLogged{ false };
+	void LogIdleUploadSocket(const char *stage, uint64 idleMs);
 	uint32 m_remoteip;
 	CNetworkAddress m_remoteAddress; // Dial target, or the peer captured at accepted TCP ingress.
 };

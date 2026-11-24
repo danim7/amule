@@ -103,6 +103,11 @@
 #include <unistd.h>      // close() for the startup bind probe
 #include <cstring>       // strlen() for SO_BINDTODEVICE
 #include <cerrno>        // errno / EPERM
+#include <sys/ioctl.h>   // ioctl() for the send queue size
+#ifdef __linux__
+#include <cstddef>         // offsetof
+#include <linux/sockios.h> // SIOCOUTQ
+#endif
 // The 10.6 SDK has IP_BOUND_IF but not IPV6_BOUND_IF. Value is ABI-stable.
 #if defined(__APPLE__) && !defined(IPV6_BOUND_IF)
 #define IPV6_BOUND_IF 125
@@ -232,6 +237,75 @@ static inline void SetTcpKeepalive(Handle native, int idleSec, int intervalSec, 
 #endif
 #endif
 }
+
+#ifdef __linux__
+// Diagnostic only. The kernel's struct tcp_info only ever grows at the end, and getsockopt()
+// reports how much of it was filled, so this copy of its layout (up to tcpi_snd_wnd, Linux 5.19)
+// works with older kernels and with C libraries whose struct is shorter.
+struct DiagTcpInfo
+{
+	uint8_t state, ca_state, retransmits, probes, backoff, options, wscale, app_limited;
+	uint32_t rto, ato, snd_mss, rcv_mss;
+	uint32_t unacked, sacked, lost, retrans, fackets;
+	uint32_t last_data_sent, last_ack_sent, last_data_recv, last_ack_recv;
+	uint32_t pmtu, rcv_ssthresh, rtt, rttvar, snd_ssthresh, snd_cwnd, advmss, reordering;
+	uint32_t rcv_rtt, rcv_space;
+	uint32_t total_retrans;
+	uint64_t pacing_rate, max_pacing_rate, bytes_acked, bytes_received;
+	uint32_t segs_out, segs_in;
+	uint32_t notsent_bytes, min_rtt, data_segs_in, data_segs_out;
+	uint64_t delivery_rate;
+	uint64_t busy_time, rwnd_limited, sndbuf_limited;
+	uint32_t delivered, delivered_ce;
+	uint64_t bytes_sent, bytes_retrans;
+	uint32_t dsack_dups, reord_seen;
+	uint32_t rcv_ooopack;
+	uint32_t snd_wnd;
+};
+
+// One line of what the kernel knows about this connection's sending side. Empty if unavailable.
+static wxString DescribeTcpSendState(int fd)
+{
+	wxString out;
+	int outq = -1;
+	int unsent = -1;
+	if (::ioctl(fd, SIOCOUTQ, &outq) != 0) {
+		outq = -1;
+	}
+	if (::ioctl(fd, SIOCOUTQNSD, &unsent) != 0) {
+		unsent = -1;
+	}
+	out << "kernel_queued_bytes=" << outq << " kernel_unsent_bytes=" << unsent;
+
+	DiagTcpInfo info = {};
+	socklen_t len = sizeof(info);
+	if (::getsockopt(fd, IPPROTO_TCP, TCP_INFO, &info, &len) != 0) {
+		out << " tcp_info=error:" << errno;
+		return out;
+	}
+	const auto has = [len](size_t end) { return len >= end; };
+	out << CFormat(" tcp_state=%u ca_state=%u retransmits=%u probes=%u backoff=%u rto_ms=%u "
+		       "rtt_ms=%u rttvar_ms=%u snd_mss=%u pmtu=%u cwnd=%u unacked_segs=%u lost=%u "
+		       "retrans=%u total_retrans=%u last_data_sent_ms=%u last_ack_recv_ms=%u") %
+			unsigned(info.state) % unsigned(info.ca_state) % unsigned(info.retransmits) %
+			unsigned(info.probes) % unsigned(info.backoff) % (info.rto / 1000) %
+			(info.rtt / 1000) % (info.rttvar / 1000) % info.snd_mss % info.pmtu % info.snd_cwnd %
+			info.unacked % info.lost % info.retrans % info.total_retrans % info.last_data_sent %
+			info.last_ack_recv;
+	if (has(offsetof(DiagTcpInfo, bytes_received))) {
+		out << CFormat(" bytes_acked=%llu") % static_cast<unsigned long long>(info.bytes_acked);
+	}
+	if (has(offsetof(DiagTcpInfo, delivered))) {
+		out << CFormat(" rwnd_limited_ms=%llu sndbuf_limited_ms=%llu") %
+				static_cast<unsigned long long>(info.rwnd_limited / 1000) %
+				static_cast<unsigned long long>(info.sndbuf_limited / 1000);
+	}
+	if (has(offsetof(DiagTcpInfo, snd_wnd) + sizeof(info.snd_wnd))) {
+		out << CFormat(" peer_window=%u") % info.snd_wnd;
+	}
+	return out;
+}
+#endif
 
 #ifdef __WINDOWS__
 // Map a Windows adapter FriendlyName (what the prefs dropdown shows, e.g. "Ethernet",
@@ -649,6 +723,16 @@ public:
 		SetTcpKeepalive(m_socket->native_handle(), idleSec, probeIntervalSec, probeCount);
 	}
 
+	wxString DescribeSendState() const
+	{
+#ifdef __linux__
+		if (m_socket && m_socket->is_open()) {
+			return DescribeTcpSendState(m_socket->native_handle());
+		}
+#endif
+		return wxEmptyString;
+	}
+
 	// Turn Nagle off. Same timing contract as EnableTcpKeepalive: the
 	// caller invokes this once the fd is live (after connect / accept).
 	void EnableTcpNoDelay()
@@ -663,7 +747,9 @@ public:
 		// lets us write, and reset the timeout, often. AMULE_NOTSENT_LOWAT=bytes, 0 = off.
 		static const int s_lowat = [] {
 			const char *env = getenv("AMULE_NOTSENT_LOWAT");
-			return env ? atoi(env) : 128 * 1024;
+			const int mark = env ? atoi(env) : 128 * 1024;
+			AddLogLineN(CFormat(wxT("Diag: TCP_NOTSENT_LOWAT mark %d bytes (0 = off)")) % mark);
+			return mark;
 		}();
 		if (s_lowat > 0) {
 			const int value = s_lowat;
@@ -1523,6 +1609,11 @@ void CLibSocket::EnableTcpNoDelay()
 bool CLibSocket::GetTcpNoDelay() const
 {
 	return m_aSocket->TcpNoDelay();
+}
+
+wxString CLibSocket::DescribeSendState() const
+{
+	return m_transport ? wxString() : m_aSocket->DescribeSendState();
 }
 
 void CLibSocket::SetConnectTimeout(int ms)
