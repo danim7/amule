@@ -162,6 +162,9 @@ public:
 	// as one log line. Linux only; empty elsewhere and for an attached transport.
 	wxString DescribeSendState() const;
 
+	// EXPERIMENT (#2607): TCP_NOTSENT_LOWAT on Linux, 0 for the kernel's default.
+	void SetNotSentLowat(int mark);
+
 	// Bytes the kernel still holds for this TCP socket: written but not yet acknowledged by the
 	// peer, unsent ones included. False for an attached transport and where the platform has no
 	// such query (Linux, macOS and the BSDs with FIONWRITE have one; Windows does not).

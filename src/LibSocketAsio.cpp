@@ -303,6 +303,11 @@ static wxString DescribeTcpSendState(int fd)
 	if (has(offsetof(DiagTcpInfo, snd_wnd) + sizeof(info.snd_wnd))) {
 		out << CFormat(" peer_window=%u") % info.snd_wnd;
 	}
+	int lowat = -1;
+	len = sizeof(lowat);
+	if (::getsockopt(fd, IPPROTO_TCP, TCP_NOTSENT_LOWAT, &lowat, &len) == 0) {
+		out << " notsent_lowat=" << lowat;
+	}
 	return out;
 }
 #endif
@@ -777,25 +782,26 @@ public:
 		}
 		error_code ec;
 		m_socket->set_option(ip::tcp::no_delay(true), ec);
-#ifdef TCP_NOTSENT_LOWAT
-		// EXPERIMENT (#2607): cap the unsent part of the send queue so a slowly draining peer
-		// lets us write, and reset the timeout, often. AMULE_NOTSENT_LOWAT=bytes, 0 = off.
-		static const int s_lowat = [] {
-			const char *env = getenv("AMULE_NOTSENT_LOWAT");
-			const int mark = env ? atoi(env) : 128 * 1024;
-			AddLogLineN(CFormat(wxT("Diag: TCP_NOTSENT_LOWAT mark %d bytes (0 = off)")) % mark);
-			return mark;
-		}();
-		if (s_lowat > 0) {
-			const int value = s_lowat;
-			if (setsockopt(m_socket->native_handle(),
-				    IPPROTO_TCP,
-				    TCP_NOTSENT_LOWAT,
-				    &value,
-				    sizeof(value)) != 0) {
-				AddDebugLogLineN(logAsio, CFormat("TCP_NOTSENT_LOWAT failed %s") % m_IP);
+	}
+
+	// EXPERIMENT (#2607): cap the unsent part of the send queue so a slowly draining peer lets us
+	// write, and reset the timeout, often. 0 goes back to the kernel's default (no cap).
+	void SetNotSentLowat(int mark)
+	{
+#if defined(__linux__) && defined(TCP_NOTSENT_LOWAT)
+		auto self = shared_from_this();
+		dispatch(m_strand, [self, mark]() {
+			if (self->m_socket && self->m_socket->is_open() &&
+				setsockopt(self->m_socket->native_handle(),
+					IPPROTO_TCP,
+					TCP_NOTSENT_LOWAT,
+					&mark,
+					sizeof(mark)) != 0) {
+				AddDebugLogLineN(logFileIO, CFormat("TCP_NOTSENT_LOWAT failed: %d") % errno);
 			}
-		}
+		});
+#else
+		(void)mark;
 #endif
 	}
 
@@ -1649,6 +1655,13 @@ bool CLibSocket::GetTcpNoDelay() const
 wxString CLibSocket::DescribeSendState() const
 {
 	return m_transport ? wxString() : m_aSocket->DescribeSendState();
+}
+
+void CLibSocket::SetNotSentLowat(int mark)
+{
+	if (!m_transport) {
+		m_aSocket->SetNotSentLowat(mark);
+	}
 }
 
 bool CLibSocket::GetQueuedSendBytes(uint64 &bytes) const

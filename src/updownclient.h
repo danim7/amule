@@ -36,6 +36,7 @@
 #include <atomic>
 #include "KadServedBuddyPolicy.h" // Needed for IsNatTCapableRequest
 #include "DisplayRateCounter.h"
+#include "DiagDrainCase.h"
 
 #include "Constants.h"    // Needed for ESourceFrom
 #include "GetTickCount.h" // Needed for GetTickCount64
@@ -565,6 +566,9 @@ public:
 	// upload
 	uint8 GetUploadState() const { return m_nUploadState; }
 	void SetUploadState(uint8 news);
+	// EXPERIMENT (#2607): the DiagDrainCase of the current upload slot.
+	int GetDiagDrainCase() const { return m_diagDrainCase; }
+	void ClearDiagDrainCase() { m_diagDrainCase = DiagDrainCase::kNone; }
 	uint64 GetTransferredUp() const { return m_nTransferredUp; }
 	uint64 GetSessionUp() const { return m_nTransferredUp - m_nCurSessionUp; }
 	void ResetSessionUp();
@@ -1195,6 +1199,8 @@ private:
 	// Upload data rate computation. Atomic: CUploadDiskIOThread reads the rate.
 	std::atomic<uint32> m_nUpDatarate;
 	void ResetDisplayUploadRate();
+	void StartDiagDrainCase();
+	int m_diagDrainCase = DiagDrainCase::kNone;
 	CDisplayRateCounter m_displayUploadRate;
 	uint64 m_lastDisplayUploadSample = 0;
 	CDisplayRateCounter m_displayDownloadRate;

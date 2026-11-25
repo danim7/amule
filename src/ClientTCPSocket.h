@@ -183,6 +183,8 @@ private:
 	std::atomic<uint64> timeout_timer;
 	// Diagnostic: the idle upload socket was already described at half the timeout.
 	std::atomic<bool> m_idleUploadLogged{ false };
+	// Diagnostic: the timer value whose timeout the queue check has put off and logged.
+	uint64 m_deferredTimer = 0;
 	void LogIdleUploadSocket(const char *stage, uint64 idleMs);
 	// Kernel send queue of an upload socket at the last timeout check, and when it last shrank.
 	// Only valid for the timeout_timer value they were taken under. Main thread only.

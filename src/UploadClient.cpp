@@ -65,6 +65,26 @@ void CUpDownClient::ResetDisplayUploadRate()
 	}
 }
 
+// EXPERIMENT (#2607): give the slot that starts its peer's next case.
+void CUpDownClient::StartDiagDrainCase()
+{
+	static DiagDrainCase::CRotation s_rotation = [] {
+		DiagDrainCase::CRotation rotation(getenv("AMULE_DRAIN_CASES"));
+		AddLogLineN(CFormat(wxT("Diag: upload drain cases %s")) % rotation.Names());
+		return rotation;
+	}();
+	ClearDiagDrainCase();
+	if (!m_socket || m_socket->HasTransport()) {
+		return; // uTP and QUIC have neither the option nor the queue
+	}
+	const wxString peer = HasValidHash() ? GetUserHash().Encode() : GetUserAddress().ToWxString();
+	m_diagDrainCase = s_rotation.Next(std::string(peer.utf8_str()));
+	m_socket->SetNotSentLowat(std::max(m_diagDrainCase, 0));
+	AddDebugLogLineN(logFileIO,
+		CFormat("Upload slot case: id=%u client=%s case=%s") % ECID() % GetFullIP() %
+			DiagDrainCase::Name(m_diagDrainCase));
+}
+
 void CUpDownClient::SetUploadState(uint8 eNewState)
 {
 	if (eNewState != m_nUploadState) {
@@ -84,6 +104,7 @@ void CUpDownClient::SetUploadState(uint8 eNewState)
 			m_fSentOutOfPartReqs = 0;
 			m_bDisableCompression = false;
 			m_bIOError = false;
+			StartDiagDrainCase();
 		}
 
 		// don't add any final cleanups for US_NONE here

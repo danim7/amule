@@ -316,8 +316,9 @@ void CClientTCPSocket::LogIdleUploadSocket(const char *stage, uint64 idleMs)
 		return;
 	}
 	AddDebugLogLineN(logFileIO,
-		CFormat("Upload socket idle: stage=%s client=%s idle_ms=%u session_bytes=%u %s") % stage %
-			m_client->GetFullIP() % idleMs % m_client->GetSessionUp() % DescribeSendState());
+		CFormat("Upload socket idle: stage=%s client=%s idle_ms=%u session_bytes=%u %s case=%s") %
+			stage % m_client->GetFullIP() % idleMs % m_client->GetSessionUp() %
+			DescribeSendState() % DiagDrainCase::Name(m_client->GetDiagDrainCase()));
 }
 
 bool CClientTCPSocket::CheckTimeOut()
@@ -353,8 +354,15 @@ bool CClientTCPSocket::CheckTimeOut()
 	const uint64 now = std::max<uint64>(::GetTickCount64(), timerStart);
 	TrackUploadSendQueue(timerStart, now);
 	const uint64 idle = now - LastUploadDrain(timerStart);
-	if (idle > uTimeout / 2 && idle <= uTimeout && !m_idleUploadLogged.exchange(true)) {
+	if (idle <= uTimeout / 2) {
+		// A drain, with the queue check: the next half snapshot belongs to the next idle period.
+		m_idleUploadLogged.store(false, std::memory_order_relaxed);
+	} else if (idle <= uTimeout && !m_idleUploadLogged.exchange(true)) {
 		LogIdleUploadSocket("half", idle);
+	}
+	if (now - timerStart > uTimeout && idle <= uTimeout && m_deferredTimer != timerStart) {
+		m_deferredTimer = timerStart;
+		LogIdleUploadSocket("deferred", now - timerStart);
 	}
 	if (idle > uTimeout) {
 		LogIdleUploadSocket("timeout", idle);
@@ -376,7 +384,8 @@ bool CClientTCPSocket::CheckTimeOut()
 void CClientTCPSocket::TrackUploadSendQueue(uint64 timerStart, uint64 now)
 {
 	uint64 queued = 0;
-	if (!m_client || m_client->GetUploadState() != US_UPLOADING || !GetQueuedSendBytes(queued)) {
+	if (!m_client || m_client->GetUploadState() != US_UPLOADING ||
+		m_client->GetDiagDrainCase() != DiagDrainCase::kQueueCheck || !GetQueuedSendBytes(queued)) {
 		m_drainTracked = false;
 		return;
 	}
